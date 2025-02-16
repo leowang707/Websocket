@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>GPS Arrow Marker with Track (CompressedImage) - Tabs Demo</title>
+
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    crossorigin=""
+  />
+  <style>
+    /* 讓 HTML 與 BODY 撐滿瀏覽器視窗 */
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      font-family: Arial, sans-serif;
+      box-sizing: border-box;
+    }
+
+    /* 使用 flex 讓 body 成為上下結構 (header + tab + 內容) */
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /*****************************************/
+    /* 頂部標題 (固定高度)                   */
+    /*****************************************/
+    header {
+      flex: 0 0 auto; /* 不要被壓縮 */
+      padding: 10px;
+      text-align: center;
+      background-color: #eee;
+    }
+
+    /*****************************************/
+    /* Tabs (固定高度)                       */
+    /*****************************************/
+    .tab {
+      flex: 0 0 auto; /* 不要被壓縮 */
+      display: flex;
+      justify-content: center;
+      background-color: #ddd;
+    }
+    /* Tab 按鈕 */
+    .tab button {
+      background-color: inherit;
+      border: none;
+      outline: none;
+      cursor: pointer;
+      padding: 14px 16px;
+      transition: 0.3s;
+      font-size: 17px;
+    }
+    .tab button:hover {
+      background-color: #bbb;
+    }
+    .tab button.active {
+      background-color: #fff;
+      font-weight: bold;
+      border-bottom: 2px solid #000;
+    }
+
+    /*****************************************/
+    /* Tabs 內容區 (填滿剩餘空間)            */
+    /*****************************************/
+    #tabsContent {
+      flex: 1 1 auto;         /* 填滿剩餘空間 */
+      display: flex;          /* 可以用來在裡面切換顯示的 tabcontent */
+      flex-direction: column; /* 預設上下排列 */
+      overflow: hidden;       /* 讓多餘內容隱藏或可自行改成 scroll */
+    }
+
+    /* 隱藏的 tabcontent (預設不顯示) */
+    .tabcontent {
+      display: none;
+      flex: 1 1 auto;         /* 填滿 #tabsContent 剩餘空間 */
+      flex-direction: column; /* 內部可再自行排版 */
+      padding: 10px;
+      box-sizing: border-box;
+      overflow: hidden;       /* 或 overflow: auto; 看需求 */
+    }
+    /* 被激活時 (active) 顯示 */
+    .tabcontent.active {
+      display: flex;
+    }
+
+    /*****************************************/
+    /* 1) 影像傳輸部份的 CSS (Tab1)         */
+    /*****************************************/
+    .camera-container {
+      width: 100%;
+      margin: 0 auto;
+      border: 2px solid black;
+      box-sizing: border-box;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex: 1;               /* 填滿可用空間 */
+      min-height: 0;         /* 避免 flex 子元素高度被壓縮出問題 */
+      overflow: auto;        /* 若內容過多可捲動 */
+    }
+    .camera-stream {
+      padding: 5px;
+      max-width: 100%;
+      box-sizing: border-box;
+      flex: 1;
+    }
+    .camera-stream img {
+      display: block;
+      width: 100%;
+      height: auto;
+      object-fit: contain;
+    }
+
+    /*****************************************/
+    /* 2) 地圖及相關功能部份的 CSS (Tab2)   */
+    /*****************************************/
+    .map-wrapper {
+      width: 100%;
+      margin: 0 auto;
+      border: 2px solid black;
+      border-radius: 5px;
+      display: flex;
+      flex-direction: row;
+      flex: 1;         /* 填滿可用空間 */
+      min-height: 0;   /* 避免 flex 子元素高度被壓縮 */
+      overflow: hidden;
+    }
+
+    #map {
+      flex: 1;         /* 地圖填滿 */
+      min-height: 0;
+    }
+
+    .map-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 10px;
+      box-sizing: border-box;
+      background-color: #f9f9f9;
+    }
+
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    #coordinatesDisplay {
+      width: 80%;
+      margin: 0 auto;
+      font-size: 18px;
+      font-weight: bold;
+      color: #333;
+      text-align: left;
+    }
+
+    #displayInfo {
+      width: 80%;
+      margin: 10px auto;
+      font-size: 16px;
+      font-weight: bold;
+      color: #444;
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 頂部標題 -->
+  <header>
+    <h1>GPS Arrow Marker with Track (CompressedImage) - Tabs Demo</h1>
+  </header>
+
+  <!-- Tabs (兩個標籤) -->
+  <div class="tab">
+    <button class="tablinks" id="defaultOpen" onclick="openTab(event, 'tabCamera')">影像傳輸</button>
+    <button class="tablinks" onclick="openTab(event, 'tabMap')">地圖與功能</button>
+  </div>
+
+  <!-- 用來放兩個 tabcontent 的容器 -->
+  <div id="tabsContent">
+    <!-- Tab1: 影像傳輸 -->
+    <div id="tabCamera" class="tabcontent">
+      <div class="camera-container">
+        <div class="camera-stream">
+          <img id="camera_stitched" alt="Stitched Camera Stream">
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab2: 地圖與相關功能 -->
+    <div id="tabMap" class="tabcontent">
+      <div class="map-wrapper">
+        <div id="map"></div>
+        <div class="map-controls">
+          <button id="clearTrackBtn">清除軌跡</button>
+          <button id="confirmBtn">確認</button>
+          <button id="clearPinsBtn">清除大頭針</button>
+          <button id="trackCurrentBtn">追蹤當前位置</button>
+          <button id="setHomeBtn">設為Home Position (current_gps=true)</button>
+        </div>
+      </div>
+      <div id="coordinatesDisplay"></div>
+      <div id="displayInfo"></div>
+    </div>
+  </div>
+
+  <!-- roslibjs: 與 ROS 建立連線 -->
+  <script src="https://cdn.jsdelivr.net/npm/roslib@1.3.0/build/roslib.js"></script>
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    /***************************************/
+    /* 0. 連線設定                         */
+    /***************************************/
+    const hostname = window.location.hostname;
+    const rosbridgePort = '9090';
+
+    var ros = new ROSLIB.Ros({
+      url : `ws://${hostname}:${rosbridgePort}`
+    });
+
+    ros.on('connection', function() {
+      console.log('已連接至 websocket：ws://' + hostname + ':' + rosbridgePort);
+    });
+    ros.on('error', function(error) {
+      console.log('連線錯誤：', error);
+    });
+    ros.on('close', function() {
+      console.log('WebSocket 已關閉。');
+    });
+
+    /***************************************/
+    /* 1. 訂閱相機影像                     */
+    /***************************************/
+    function subscribeCompressedImage(topicName, imgElementId) {
+      const topic = new ROSLIB.Topic({
+        ros: ros,
+        name: topicName,
+        messageType: 'sensor_msgs/CompressedImage'
+      });
+      topic.subscribe(function(message) {
+        const imgElement = document.getElementById(imgElementId);
+        if (imgElement) {
+          imgElement.src = `data:image/jpeg;base64,${message.data}`;
+        }
+      });
+    }
+    // 範例: 訂閱 "/camera_stitched/color/image_raw/compressed"
+    subscribeCompressedImage('/camera_stitched/color/image_raw/compressed', 'camera_stitched');
+
+    /***************************************/
+    /* 2. 初始化地圖 (Leaflet)            */
+    /***************************************/
+    let map = L.map('map').setView([0, 0], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      minZoom: 1,
+      maxZoom: 19
+    }).addTo(map);
+
+    // 自訂箭頭圖示
+    const arrowIcon = L.divIcon({
+      html: `
+        <div 
+          style="
+            width: 20px; 
+            height: 20px; 
+            transform-origin: 50% 50%; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+          "
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="blue" width="20" height="20">
+            <polygon points="50,0 90,100 50,75 10,100" />
+          </svg>
+        </div>`,
+      className: '',
+      iconSize: [20, 20],
+      iconAnchor: [10, 10]
+    });
+
+    let gpsMarker = L.marker([0, 0], { icon: arrowIcon }).addTo(map);
+
+    // 飛機航向 (0=北, 90=東)
+    let heading = 0;
+
+    // 地圖中心是否已初始化
+    let initialCentered = false;
+
+    // 紀錄 UAV 走過的軌跡
+    let trackCoordinates = [];
+    let trackLine = L.polyline([], { color: 'red', weight: 3 }).addTo(map);
+
+    // 是否追蹤當前位置
+    let isTracking = false;
+
+    // UAV 當前的 GPS 資訊
+    let lastLat = null;
+    let lastLon = null;
+    let lastAlt = 0.0;
+
+    // Home Position (從 /mavros/home_position/home 取得)
+    let homePositionData = null;
+
+    /***************************************/
+    /* 3. 訂閱 GPS & Heading               */
+    /***************************************/
+    // (A) GPS
+    const gpsTopic = new ROSLIB.Topic({
+      ros: ros,
+      name: '/js/sensors/gps/gps/fix', //'/mavros/global_position/global',
+      messageType: 'sensor_msgs/NavSatFix'
+    });
+    gpsTopic.subscribe(handleGPSUpdate);
+
+    function handleGPSUpdate(msg) {
+      let lat = msg.latitude;
+      let lon = msg.longitude;
+      let alt = msg.altitude || 0.0;
+
+      lastLat = lat;
+      lastLon = lon;
+      lastAlt = alt;
+
+      // 第一次接收 GPS => 設定地圖中心
+      if (!initialCentered) {
+        map.setView([lat, lon], 15);
+        initialCentered = true;
+      }
+
+      // 更新 Marker 與軌跡
+      gpsMarker.setLatLng([lat, lon]);
+      let markerEl = gpsMarker.getElement();
+      if (markerEl) {
+        let arrowDiv = markerEl.querySelector('div');
+        if (arrowDiv) {
+          // 旋轉箭頭
+          arrowDiv.style.transform = `rotate(${heading}deg)`;
+        }
+      }
+      trackCoordinates.push([lat, lon]);
+      trackLine.setLatLngs(trackCoordinates);
+
+      if (isTracking) {
+        map.setView([lat, lon]);
+      }
+
+      updateDisplay();
+    }
+
+    // (B) Heading
+    const headingTopic = new ROSLIB.Topic({
+      ros: ros,
+      name: '/mavros/global_position/compass_hdg',
+      messageType: 'std_msgs/Float64'
+    });
+    headingTopic.subscribe(function(msg) {
+      heading = msg.data; 
+    });
+
+    // (C) Home Position
+    const homePositionTopic = new ROSLIB.Topic({
+      ros: ros,
+      name: '/mavros/home_position/home',
+      messageType: 'mavros_msgs/HomePosition'
+    });
+    homePositionTopic.subscribe(function(msg) {
+      homePositionData = {
+        latitude: msg.geo.latitude,
+        longitude: msg.geo.longitude,
+        altitude: msg.geo.altitude
+      };
+      updateDisplay();
+    });
+
+    /***************************************/
+    /* 4. 清除軌跡                         */
+    /***************************************/
+    const clearTrackBtn = document.getElementById('clearTrackBtn');
+    clearTrackBtn.addEventListener('click', function() {
+      trackCoordinates = [];
+      trackLine.setLatLngs(trackCoordinates);
+      console.log('軌跡已清除');
+    });
+
+    /***************************************/
+    /* 5. 點擊地圖 => 放置/確認 大頭針      */
+    /***************************************/
+    let tempMarker = null;         // 暫時 Marker
+    let tempMarkerLatLng = null;   // 暫時 Marker 的經緯度
+    let latestPin = null;          // 真正的大頭針
+
+    map.on('click', function(e) {
+      if (tempMarker) {
+        map.removeLayer(tempMarker);
+      }
+      tempMarkerLatLng = e.latlng;
+      tempMarker = L.circleMarker(tempMarkerLatLng, {
+        radius: 8,
+        color: 'red',
+        fillColor: 'red',
+        fillOpacity: 1
+      }).addTo(map);
+    });
+
+    const confirmBtn = document.getElementById('confirmBtn');
+    confirmBtn.addEventListener('click', function() {
+      if (!tempMarkerLatLng) return;
+      if (tempMarker) {
+        map.removeLayer(tempMarker);
+        tempMarker = null;
+      }
+      if (latestPin) {
+        map.removeLayer(latestPin);
+      }
+      latestPin = L.marker(tempMarkerLatLng).addTo(map);
+      document.getElementById('coordinatesDisplay').textContent =
+        `Lat: ${tempMarkerLatLng.lat.toFixed(6)}, Lng: ${tempMarkerLatLng.lng.toFixed(6)}`;
+      tempMarkerLatLng = null;
+    });
+
+    /***************************************/
+    /* 6. 清除大頭針                       */
+    /***************************************/
+    const clearPinsBtn = document.getElementById('clearPinsBtn');
+    clearPinsBtn.addEventListener('click', function() {
+      if (latestPin) {
+        map.removeLayer(latestPin);
+        latestPin = null;
+      }
+      document.getElementById('coordinatesDisplay').textContent = '';
+      console.log('大頭針已清除');
+    });
+
+    /***************************************/
+    /* 7. 追蹤當前位置                     */
+    /***************************************/
+    const trackCurrentBtn = document.getElementById('trackCurrentBtn');
+    trackCurrentBtn.addEventListener('click', function() {
+      if (!isTracking) {
+        isTracking = true;
+        trackCurrentBtn.textContent = '停止追蹤';
+        console.log('開始追蹤當前位置');
+        let pos = gpsMarker.getLatLng();
+        if (pos) {
+          map.setView(pos, map.getZoom());
+        }
+      } else {
+        isTracking = false;
+        trackCurrentBtn.textContent = '追蹤當前位置';
+        console.log('停止追蹤當前位置');
+      }
+    });
+
+    /***************************************/
+    /* 8. 設為Home Position (current_gps=true) */
+    /***************************************/
+    // MAVROS Service: mavros_msgs/CommandHome
+    const setHomeService = new ROSLIB.Service({
+      ros: ros,
+      name: '/mavros/cmd/set_home',
+      serviceType: 'mavros_msgs/CommandHome'
+    });
+
+    function setHomePosition() {
+      if (lastLat === null || lastLon === null) {
+        console.log('無法設定 Home，尚未取得 UAV 當前位置');
+        return;
+      }
+      let request = new ROSLIB.ServiceRequest({
+        current_gps: true,  
+        yaw: 0.0,          
+        latitude: 9999.0,  
+        longitude: -9999.0,
+        altitude: 9999.0
+      });
+
+      setHomeService.callService(request, function(result) {
+        console.log('set_home service result:', result);
+        if (!result.success) {
+          console.warn('設定 Home 失敗');
+          return;
+        }
+        console.log('成功設定 Home (current_gps=true)');
+      });
+    }
+    document.getElementById('setHomeBtn').addEventListener('click', setHomePosition);
+
+    /***************************************/
+    /* 9. 更新資訊顯示                    */
+    /***************************************/
+    function updateDisplay() {
+      let text = '';
+
+      // 目前 UAV 位置/航向
+      if (lastLat !== null && lastLon !== null) {
+        text += `<div>現在位置: Lat ${lastLat.toFixed(6)}, Lon ${lastLon.toFixed(6)}, Alt ${lastAlt.toFixed(2)}</div>`;
+        text += `<div>現在航向 (compass_hdg): ${heading.toFixed(2)}°</div>`;
+      } else {
+        text += `<div>現在位置: 尚未取得</div>`;
+      }
+
+      // Home Position
+      if (homePositionData) {
+        text += `<hr/><div>Home Position (讀自 /mavros/home_position/home):</div>`;
+        text += `<div>Lat: ${homePositionData.latitude.toFixed(6)}</div>`;
+        text += `<div>Lon: ${homePositionData.longitude.toFixed(6)}</div>`;
+        text += `<div>Alt: ${homePositionData.altitude.toFixed(2)}</div>`;
+      } else {
+        text += `<hr/><div>Home Position: 尚未取得 (或尚未設定)</div>`;
+      }
+
+      document.getElementById('displayInfo').innerHTML = text;
+    }
+
+    /***************************************/
+    /* 10. 把 local odom 轉為 PoseStamped   */
+    /***************************************/
+    const localPoseOdomTopic = new ROSLIB.Topic({
+      ros: ros,
+      name: '/mavros/global_position/local',
+      messageType: 'nav_msgs/Odometry'
+    });
+
+    const myLocalPoseTopic = new ROSLIB.Topic({
+      ros: ros,
+      name: '/my_local_pose',
+      messageType: 'geometry_msgs/PoseStamped'
+    });
+
+    localPoseOdomTopic.subscribe(function(msg) {
+      let poseStamped = new ROSLIB.Message({
+        header: {
+          seq: msg.header.seq,
+          stamp: msg.header.stamp,
+          frame_id: msg.header.frame_id
+        },
+        pose: {
+          position: {
+            x: msg.pose.pose.position.x,
+            y: msg.pose.pose.position.y,
+            z: msg.pose.pose.position.z
+          },
+          orientation: {
+            x: msg.pose.pose.orientation.x,
+            y: msg.pose.pose.orientation.y,
+            z: msg.pose.pose.orientation.z,
+            w: msg.pose.pose.orientation.w
+          }
+        }
+      });
+      myLocalPoseTopic.publish(poseStamped);
+    });
+
+    /***************************************/
+    /* Tabs 切換相關 JS (顯示/隱藏)        */
+    /***************************************/
+    function openTab(evt, tabName) {
+      // 隱藏所有 tabcontent
+      const tabcontents = document.getElementsByClassName('tabcontent');
+      for (let i = 0; i < tabcontents.length; i++) {
+        tabcontents[i].classList.remove('active');
+      }
+      // 移除所有 tablinks 上的 "active"
+      const tablinks = document.getElementsByClassName('tablinks');
+      for (let i = 0; i < tablinks.length; i++) {
+        tablinks[i].classList.remove('active');
+      }
+      // 顯示當前 tab，並加上 active 樣式
+      document.getElementById(tabName).classList.add('active');
+      evt.currentTarget.classList.add('active');
+
+      // 如果切到地圖頁，呼叫 invalidateSize() 以確保地圖正確渲染
+      if (tabName === 'tabMap') {
+        setTimeout(() => {
+          map.invalidateSize();
+        }, 100);
+      }
+    }
+
+    // 預設打開第一個 Tab
+    document.getElementById("defaultOpen").click();
+  </script>
+</body>
+</html>
